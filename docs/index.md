@@ -4,9 +4,9 @@ How it works
 ![how it works](i/scheme0.png)
 
 Oh. My. GOD! What is the crazy image!?
-Calm down. This is easy. Let me to explain the scheme.
+Calm down. This is easy. Let me to explain this scheme.
 
-First, ```fist``` application object (```app``` below) is http server. ```app``` has an ```Observable``` behavior that used to broadcast any application events. ```app``` can receive incoming requests and respond to client. ```app``` object is a ```FIST``` square on the scheme.
+First, ```fist``` application object (```app``` below) is an http server. ```app``` has an ```Observable``` behavior that is used to broadcast any application events. ```app``` can receive incoming requests and respond to client. ```app``` object is a ```FIST``` square on the scheme.
 
 ```js
 var app = fist();
@@ -16,7 +16,9 @@ app.on('some-event', function (event) {
 });
 ```
 
-When an application starts, webserver immediately starts listening any socket or port you want, and initialization procedure begins, but async. What does it mean? ```app``` will defer any incoming requests until ```app``` not be ready, and it will handle these all pending when initialization will be done.
+When an application starts, webserver immediately starts listening socket or port you specified (defaults are taken from ```http``` module), and async initialization procedure begins. 'acync' means that the```app``` will defer any incoming requests until ```app``` is ready, and then it will handle them.
+
+Example of the application long start:
 
 ```js
 app.plug(function (done) {
@@ -26,24 +28,28 @@ app.plug(function (done) {
 });
 ```
 
-Okay, our ```app``` ready to work, and we receive our first request.
+OK, our ```app``` is ready to work, and we've received our first request.
 
-When ```app``` receives a request, it begins routing procedure. Let router is a sequence of same type squares marked like ```route + A``` on the scheme. ```Route``` is a part of ```Router``` which is a set of request pattern and related to some static data. The ```Router``` iterates over its routes and checks if received request is suitable for current route while not matched. If the ```Router``` has no matched routes, application will respond like ```Not Found```. But if there is a match, ```app``` will begin resolving procedure.
+When ```app``` receives a request, it begins routing procedure. In our diagram router depicted as a sequence of the squares marked like ```route + A```. ```Route```, which is the combination of request pattern and related static data, by itself is a part of ```Router```. The ```Router``` iterates over its routes and checks received request path for matching. If ```Router``` doesn't have matched routes, application responds, that resourse ```Not Found```. But if matched route is found, ```app``` starts resolving procedure.
 
+Routes' declaration example:
 ```js
 app.route('/', 'index-page');
-app.route('/avatars/<imageId>.png', 'avatar-image');
 app.route('/forum', 'forum-page');
-//  "e" flag means prefix matching 
+
+//Route with parameter
+app.route('/avatars/<imageId>.png', 'avatar-image');
+
+//  "e" flag means prefix matching
 // like url.match(/^\/admin\//)
 //  instead of url.match(/^\/admin\/$/)
 app.route('/admin/ e', 'admin-check');
 app.route('/admin/pane', 'admin-pane-page');
-
 ```
 
-As mentioned above, route is a pattern related to some data. What data in our case? It is a ```Unit``` reference. Let unit is a circles on the scheme. ```Unit``` is a static ```app``` logical unit that can do something and return result or error.
+As mentioned above, route is a pattern related to some data. In our case it is a ```Unit``` reference. In our diagram units are depicted as circles. ```Unit``` is a application logical unit that implements one of it's 'atom' part's. It could be kind of controller, wich handles client request, or model, which sends request to backend, or some helper, for example, which performs server-side form validating.
 
+Example of contoller unit:
 ```js
 app.unit({
     path: 'index-page',
@@ -53,7 +59,9 @@ app.unit({
 });
 ```
 
-How do ```app``` resolves units? Before ```app``` begins resolving procedure, it creates a ```Track```. ```Track``` is a current request context, including API to working with request and response objects such as getting request headers, setting headers to response and much more. The current ```Track``` instance is available all the time during the execution of the resolution procedure. ```Unit``` that directly assigned with request pattern is controller.
+How do ```app``` resolves units? Before ```app``` begins resolving procedure, it creates a ```Track``` object. ```Track``` is a current request context, which contains API for dealing with request and response objects. For example, getting request headers, setting response headers and much more. ``Track``` instance for particular request is available during the whole execution of the resolution procedure.
+
+```Unit``` that directly associated with request pattern widely known as controller. :)
 
 ```js
 app.unit({
@@ -66,8 +74,9 @@ app.unit({
 })
 ```
 
-First ```app``` will resolve controller's dependencies, then the controller itself. ```Unit```'s result can depend on other unit results. It is an explicit dependencies feature. For each unit call, ```app``` creates a ```Context``` instance and passes it as argument. ```Context``` is an unique ```Unit```'s calling context. It has dependencies resolution results, call parameters and other special API.
+```Units``` can declare dependencies. Firstly,  ```app``` resolves ```Unit's``` dependencies, then ```Unit''' itself. It's result can depend on other ```Units'``` results. It is an explicit dependencies feature. For each ```Unit``` call, ```app``` creates an object ```Context``` and passes it to ```Unit```. ```Context``` is an unique ```Unit```'s calling context. It contains '''Unit``` dependencies' resolution results, call parameters and other special API.
 
+Example of ``Unit``` with dependency:
 ```js
 app.unit({
     path: 'sessionid',
@@ -81,7 +90,7 @@ app.unit({
     deps: ['sessionid'],
     data: function (track, context) {
         if ( context.getRes('sessionid.userId') ) {
-            return track.send('<h1>Forum</h1>');    
+            return track.send('<h1>Forum</h1>');
         }
         return track.send(403, 'Login first!');
     }
@@ -89,8 +98,9 @@ app.unit({
 
 ```
 
-When ```app``` has resolved controller it checks resulution status. If result is ```rejected``` then it will immediately respond with this value as error. But if not, ```app``` will check if track was controlled. If it was controlled that ```app``` will immedialely respond with its value and status code. But if not, ```app``` will continue routing procedure until ```Track``` will not being controlled.
+When ```app``` gets result from the controller it checks resolution status. If result status is ```rejected``` then ```app``` immediately responds with error and contoller status within response body. But if status is ```accepted```, ```app``` will check if track returns something. If yes, ```app``` will immedialely respond with controller return value and status code. But if not, ```app``` will continue routing procedure until next matching controller returns something.
 
+Example with sending error from dependency:
 ```js
 app.unit({
     path: 'admin-check',
@@ -107,13 +117,13 @@ app.unit({
 app.unit({
     page: 'admin-pane-page',
     data: function (track, context) {
-        // do not need check rights because of under admin-check controller
+        // you don't need check rights because of under admin-check controller
         return track.send('<h1>Admin pane</h1>');
     }
 });
 ```
 
-Note that not only controller could return controlling objects which says to application "Hey, you must respond to client right now!". But any unit. If some dependency returns  control object, application will stop resolution procedure and will respond. 
+Note that not only controller could return controlling objects which tells to application "Hey, you must respond to client right now!". But any unit. If some dependency returns control object, application will stop resolution procedure and will respond.
 
 ```js
 var app = fist();
@@ -137,7 +147,7 @@ app.unit({
 
 ```
 
-This application will respond ```500 Ooops!``` and controller will never executed.
+This application will respond ```500 Ooops!``` and controller will never execute.
 
 That's all! Easy!
 
